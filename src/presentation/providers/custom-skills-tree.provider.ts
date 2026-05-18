@@ -22,7 +22,7 @@ export class CustomSkillsTreeProvider implements vscode.TreeDataProvider<CustomS
       return Promise.resolve([]);
     }
 
-    const customSkills = this.skillService.getSkills().filter(skill => skill.isCustom);
+    const customSkills = this.skillService.getInstalledSkills().filter(skill => skill.isCustom);
     
     return Promise.resolve(customSkills.map(skill => new CustomSkillTreeItem(skill)));
   }

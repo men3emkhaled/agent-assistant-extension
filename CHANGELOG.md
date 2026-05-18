@@ -4,6 +4,18 @@ All notable changes to the Agent Assistant ecosystem are documented here. This p
 
 ---
 
+## [1.0.8] - 2026-05-18
+### Granular Skill Categorization
+- **Refined Folders**: Re-architected the Core Skills Tree View to use highly granular and targeted categories (e.g., separating a massive 150-skill "Cloud" folder into dedicated "AWS", "Azure", and "Google Cloud" folders).
+- **Improved Sidebar UX**: Categories are now strictly scoped (e.g., "React Ecosystem", "Docker & K8s", "Node.js", "CI/CD & DevOps") preventing sidebar overcrowding and making it much easier to toggle contextually relevant skill bundles.
+## [1.0.7] - 2026-05-18
+### Skill Marketplace & Folder Activations
+- **Skill Marketplace**: Built a native Webview Marketplace allowing users to browse, search, and instantly install any of the 1,444+ agent skills from the massive Antigravity Awesome Skills repository.
+- **Folder Activation**: Added a "Toggle Folder" button (`$(run-all)`) to instantly inject or remove an entire category of skills with one click.
+- **Core Skills Engine**: Extracted the hardcoded skills into a dynamic 300+ core skills manifest covering Frontend, Backend, Security, DevOps, Cloud, and Architecture.
+- **Mass Toggle Option**: Added a "Toggle All Skills" command (with a safety warning) for power users.
+- **Workspace Protection**: Automatically generates and updates `.gitignore` to prevent the `.antigravity` environment folder and injected agent prompts from polluting the user's version control.
+
 ## [1.0.6] - 2026-05-16
 ### Visual Identity & Search Optimization
 - **Square Logo**: Replaced the rectangular icon with a high-fidelity square logo (1:1) and transparent background for maximum visibility in search results.

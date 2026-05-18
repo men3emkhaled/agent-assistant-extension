@@ -19,6 +19,7 @@ import { SkillService } from './features/skills/skill.service';
 import { SkillsTreeProvider } from './presentation/providers/skills-tree.provider';
 import { CustomSkillsTreeProvider } from './presentation/providers/custom-skills-tree.provider';
 import { SkillBuilderWebview } from './presentation/providers/skill-builder.webview';
+import { SkillMarketplaceWebview } from './presentation/providers/skill-marketplace.webview';
 import { PersonaDiagnosticProvider } from './presentation/providers/persona-diagnostic.provider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -53,7 +54,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     const skillsTreeProvider = new SkillsTreeProvider(skillService);
-    vscode.window.registerTreeDataProvider('agent-assistant.skillsView', skillsTreeProvider);
+    const skillsTreeView = vscode.window.createTreeView('agent-assistant.skillsView', {
+      treeDataProvider: skillsTreeProvider,
+      showCollapseAll: true,
+      dragAndDropController: skillsTreeProvider
+    });
+    skillsTreeView.message = '☁️ Browse 1,440+ AI Skills in the Marketplace tab above!';
+    context.subscriptions.push(skillsTreeView);
 
     const customSkillsTreeProvider = new CustomSkillsTreeProvider(skillService);
     vscode.window.registerTreeDataProvider('agent-assistant.customSkillsView', customSkillsTreeProvider);
@@ -201,6 +208,137 @@ function registerCommands(
   disposables.push(
     vscode.commands.registerCommand('agent-assistant.createCustomSkill', () => {
       SkillBuilderWebview.createOrShow(context.extensionUri, skillService);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.toggleCategorySkills', (item: any) => {
+      if (item && item.categoryName) {
+        skillService.toggleCategory(item.categoryName);
+        skillsTreeProvider.refresh();
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.openMarketplace', () => {
+      SkillMarketplaceWebview.createOrShow(context.extensionUri, skillService);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.deleteSkill', async (item: any) => {
+      if (item && item.skill && item.skill.id) {
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to uninstall skill '${item.skill.title}'? It will be returned to the Marketplace.`,
+          'Yes',
+          'No'
+        );
+        if (confirm === 'Yes') {
+          skillService.uninstallSkill(item.skill.id);
+          skillsTreeProvider.refresh();
+          if (SkillMarketplaceWebview.currentPanel) {
+            SkillMarketplaceWebview.currentPanel.sendSkills();
+          }
+        }
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.moveSkillFolder', async (item: any) => {
+      if (item && item.skill && item.skill.id) {
+        const installed = skillService.getInstalledSkills();
+        const categories = Array.from(new Set(installed.map(s => s.category).filter(Boolean)));
+        
+        const quickPickItems = [
+          ...categories.map(cat => ({ label: cat, description: 'Existing Folder' })),
+          { label: '$(add) Create New Folder...', description: 'Create a new folder for this skill' }
+        ];
+
+        const selection = await vscode.window.showQuickPick(quickPickItems, {
+          placeHolder: `Move '${item.skill.title}' to folder...`
+        });
+
+        if (selection) {
+          if (selection.label === '$(add) Create New Folder...') {
+            const newFolder = await vscode.window.showInputBox({
+              prompt: 'Enter the name of the new folder:',
+              placeHolder: 'e.g. My Custom Folder'
+            });
+            if (newFolder && newFolder.trim()) {
+              skillService.moveSkillToCategory(item.skill.id, newFolder.trim());
+              skillsTreeProvider.refresh();
+            }
+          } else {
+            skillService.moveSkillToCategory(item.skill.id, selection.label);
+            skillsTreeProvider.refresh();
+          }
+        }
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.deleteFolder', async (item: any) => {
+      if (item && item.categoryName) {
+        const confirm = await vscode.window.showWarningMessage(
+          `Are you sure you want to delete folder '${item.categoryName}'? All skills inside it will be uninstalled and returned to the Marketplace.`,
+          'Yes, Delete All',
+          'Cancel'
+        );
+        if (confirm === 'Yes, Delete All') {
+          skillService.deleteFolder(item.categoryName);
+          skillsTreeProvider.refresh();
+          if (SkillMarketplaceWebview.currentPanel) {
+            SkillMarketplaceWebview.currentPanel.sendSkills();
+          }
+        }
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.renameFolder', async (item: any) => {
+      if (item && item.categoryName) {
+        const newName = await vscode.window.showInputBox({
+          prompt: `Rename folder '${item.categoryName}'`,
+          value: item.categoryName
+        });
+        if (newName && newName.trim() && newName.trim() !== item.categoryName) {
+          skillService.renameFolder(item.categoryName, newName.trim());
+          skillsTreeProvider.refresh();
+        }
+      }
+    })
+  );
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.createFolder', async () => {
+      const newFolder = await vscode.window.showInputBox({
+        prompt: 'Enter the name of the new folder:',
+        placeHolder: 'e.g. Frontend Agents'
+      });
+      if (newFolder && newFolder.trim()) {
+        skillService.addCustomCategory(newFolder.trim());
+        skillsTreeProvider.refresh();
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.refreshSkillsTree', () => {
+      skillsTreeProvider.refresh();
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.toggleAllSkills', () => {
+      vscode.window.showWarningMessage('Activating ALL skills can consume a massive amount of context tokens and confuse the AI. Are you sure?', 'Yes, Activate All', 'Cancel').then(selection => {
+        if (selection === 'Yes, Activate All') {
+          skillService.toggleAll();
+          skillsTreeProvider.refresh();
+        }
+      });
     })
   );
 

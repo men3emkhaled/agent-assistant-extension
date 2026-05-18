@@ -476,7 +476,7 @@ export class AccountsPanelProvider {
             </button>
           </div>
           <div class="skills-grid" id="skills-grid">
-            ${this.skillService.getSkills().map((skill, idx) => `
+            ${this.skillService.getInstalledSkills().map((skill, idx) => `
               <div class="skill-card" data-title="${skill.title.toLowerCase()}" data-category="${skill.category.toLowerCase()}" style="animation-delay: ${idx * 0.05}s">
                 <div class="skill-header">
                   <div class="skill-icon-box" style="background: ${skill.color}">

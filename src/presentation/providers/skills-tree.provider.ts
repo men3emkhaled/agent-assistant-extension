@@ -1,13 +1,43 @@
 import * as vscode from 'vscode';
 import { SkillService, Skill } from '../../features/skills/skill.service';
 
-export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem> {
+export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeItem>, vscode.TreeDragAndDropController<vscode.TreeItem> {
   private filterQuery: string = '';
   private _onDidChangeTreeData: vscode.EventEmitter<vscode.TreeItem | undefined | void> = new vscode.EventEmitter<vscode.TreeItem | undefined | void>();
   readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
+  dropMimeTypes = ['application/vnd.code.tree.agent-assistant.skills'];
+  dragMimeTypes = ['application/vnd.code.tree.agent-assistant.skills'];
+
   constructor(private skillService: SkillService) {
     skillService.onDidChangeSkills(() => this.refresh());
+  }
+
+  public async handleDrag(source: readonly vscode.TreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+    dataTransfer.set('application/vnd.code.tree.agent-assistant.skills', new vscode.DataTransferItem(source));
+  }
+
+  public async handleDrop(target: vscode.TreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
+    const transferItem = dataTransfer.get('application/vnd.code.tree.agent-assistant.skills');
+    if (!transferItem) {
+      return;
+    }
+
+    const draggedItems = transferItem.value as vscode.TreeItem[];
+    if (draggedItems.length === 0) return;
+
+    let targetCategory = 'Standalone';
+    if (target instanceof CategoryTreeItem) {
+      targetCategory = target.categoryName;
+    } else if (target instanceof SkillTreeItem) {
+      targetCategory = target.skill.category;
+    }
+
+    for (const item of draggedItems) {
+      if (item instanceof SkillTreeItem) {
+        this.skillService.moveSkillToCategory(item.skill.id, targetCategory);
+      }
+    }
   }
 
   refresh(): void {
@@ -24,7 +54,7 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
   }
 
   getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
-    let skills = this.skillService.getSkills();
+    let skills = this.skillService.getInstalledSkills();
     
     if (this.filterQuery) {
       skills = skills.filter(skill => 
@@ -61,6 +91,14 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
 
     const items: vscode.TreeItem[] = [];
     
+    // Add custom empty categories
+    const customCats = this.skillService.getCustomCategories();
+    customCats.forEach(cat => {
+      if (!groups.has(cat)) {
+        groups.set(cat, []);
+      }
+    });
+
     for (const [category, groupSkills] of groups.entries()) {
       const activeCount = groupSkills.filter(s => s.isActive).length;
       items.push(new CategoryTreeItem(category, groupSkills.length, activeCount));

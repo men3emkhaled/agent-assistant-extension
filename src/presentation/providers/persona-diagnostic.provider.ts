@@ -33,7 +33,7 @@ export class PersonaDiagnosticProvider {
   }
 
   private updateAllDiagnostics() {
-    const activeSkills = this.skillService.getSkills().filter(s => s.isActive);
+    const activeSkills = this.skillService.getInstalledSkills().filter(s => s.isActive);
     const editor = vscode.window.activeTextEditor;
 
     // Clear previous diagnostics

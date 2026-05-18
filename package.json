@@ -2,7 +2,7 @@
   "name": "agent-assistant",
   "displayName": "Agent Assistant",
   "description": "The definitive Expert Persona & Quota Management system for AI Agents. Empower your workflow with deep skill injection and real-time resource tracking.",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "icon": "logo_square.png",
   "publisher": "Men3emkhaled",
   "repository": {
@@ -111,6 +111,16 @@
         "icon": "$(close)"
       },
       {
+        "command": "agent-assistant.toggleAllSkills",
+        "title": "Toggle All Skills",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "agent-assistant.openMarketplace",
+        "title": "Skill Marketplace",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "agent-assistant.createCustomSkill",
         "title": "Create Custom Skill",
         "icon": "$(add)"
@@ -119,6 +129,36 @@
         "command": "agent-assistant.deleteCustomSkill",
         "title": "Delete Custom Skill",
         "icon": "$(trash)"
+      },
+      {
+        "command": "agent-assistant.deleteSkill",
+        "title": "Uninstall Skill",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agent-assistant.moveSkillFolder",
+        "title": "Move to Folder...",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "agent-assistant.deleteFolder",
+        "title": "Delete Folder",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agent-assistant.renameFolder",
+        "title": "Rename Folder",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "agent-assistant.createFolder",
+        "title": "Create Folder",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "agent-assistant.toggleCategorySkills",
+        "title": "Toggle Whole Folder",
+        "icon": "$(run-all)"
       }
     ],
     "viewsContainers": {
@@ -165,6 +205,30 @@
           "command": "agent-assistant.deleteCustomSkill",
           "when": "viewItem == customSkillItem",
           "group": "inline"
+        },
+        {
+          "command": "agent-assistant.toggleCategorySkills",
+          "when": "viewItem == categoryItem",
+          "group": "inline"
+        },
+        {
+          "command": "agent-assistant.deleteSkill",
+          "when": "viewItem == skillItem",
+          "group": "inline"
+        },
+        {
+          "command": "agent-assistant.moveSkillFolder",
+          "when": "viewItem == skillItem"
+        },
+        {
+          "command": "agent-assistant.deleteFolder",
+          "when": "viewItem == categoryItem",
+          "group": "inline"
+        },
+        {
+          "command": "agent-assistant.renameFolder",
+          "when": "viewItem == categoryItem",
+          "group": "inline"
         }
       ],
       "view/title": [
@@ -189,12 +253,27 @@
           "group": "navigation"
         },
         {
+          "command": "agent-assistant.createFolder",
+          "when": "view == agent-assistant.skillsView",
+          "group": "navigation"
+        },
+        {
           "command": "agent-assistant.searchSkills",
           "when": "view == agent-assistant.skillsView",
           "group": "navigation"
         },
         {
           "command": "agent-assistant.clearSkillsSearch",
+          "when": "view == agent-assistant.skillsView",
+          "group": "navigation"
+        },
+        {
+          "command": "agent-assistant.toggleAllSkills",
+          "when": "view == agent-assistant.skillsView",
+          "group": "navigation"
+        },
+        {
+          "command": "agent-assistant.openMarketplace",
           "when": "view == agent-assistant.skillsView",
           "group": "navigation"
         },
@@ -272,10 +351,10 @@
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:sql.js --format=cjs --platform=node --sourcemap --watch",
     "compile": "tsc -p ./",
     "lint": "eslint src --ext ts",
-    "package": "npx -y @vscode/vsce package",
-    "package:win": "npx -y @vscode/vsce package --target win32-x64",
-    "package:mac": "npx -y @vscode/vsce package --target darwin-arm64 --target darwin-x64",
-    "package:linux": "npx -y @vscode/vsce package --target linux-x64",
+    "package": "npx -y @vscode/vsce package --allow-package-all-secrets",
+    "package:win": "npx -y @vscode/vsce package --target win32-x64 --allow-package-all-secrets",
+    "package:mac": "npx -y @vscode/vsce package --target darwin-arm64 --target darwin-x64 --allow-package-all-secrets",
+    "package:linux": "npx -y @vscode/vsce package --target linux-x64 --allow-package-all-secrets",
     "package:all": "npm run package:win && npm run package:mac && npm run package:linux"
   },
   "devDependencies": {
