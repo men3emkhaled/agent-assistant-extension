@@ -124,12 +124,12 @@ Response:
 ### Cursor-Based Pagination (for large datasets)
 
 ```python
-GET /api/users?limit=20&cursor=eyJpZCI6MTIzfQ
+GET /api/users?limit=20&cursor=[JWT_TOKEN_REDACTED]
 
 Response:
 {
   "items": [...],
-  "next_cursor": "eyJpZCI6MTQzfQ",
+  "next_cursor": "[JWT_TOKEN_REDACTED]",
   "has_more": true
 }
 ```
@@ -237,7 +237,7 @@ async def get_users(request: Request):
 ### Bearer Token
 
 ```
-Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+Authorization: Bearer [JWT_TOKEN_REDACTED]...
 
 401 Unauthorized - Missing/invalid token
 403 Forbidden - Valid token, insufficient permissions

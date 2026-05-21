@@ -11,10 +11,10 @@
 
 ```yaml
 # GOOD: API key in header
-Authorization: ApiKey sk-live-abc123def456
+Authorization: ApiKey sk-live-[REDACTED]
 
 # BAD: API key in URL (logged in server logs, browser history, referrer headers)
-GET /api/data?api_key=sk-live-abc123def456
+GET /api/data?api_key=sk-live-[REDACTED]
 
 # Best practices:
 api_keys:

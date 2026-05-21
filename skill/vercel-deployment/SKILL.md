@@ -40,10 +40,10 @@ Properly configure environment variables for all environments
 
 // PUBLIC variables (exposed to browser)
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[JWT_TOKEN_REDACTED]
 
 // PRIVATE variables (server only)
-SUPABASE_SERVICE_ROLE_KEY=eyJ...  // Never NEXT_PUBLIC_!
+SUPABASE_SERVICE_ROLE_KEY=[JWT_TOKEN_REDACTED]  // Never NEXT_PUBLIC_!
 DATABASE_URL=postgresql://...
 
 // Per-environment values:
@@ -201,12 +201,12 @@ Only use NEXT_PUBLIC_ for truly public values:
 
 // SAFE to use NEXT_PUBLIC_
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...  // Anon key is designed to be public
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[JWT_TOKEN_REDACTED]  // Anon key is designed to be public
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
 NEXT_PUBLIC_GA_ID=G-XXXXXXX
 
 // NEVER use NEXT_PUBLIC_
-SUPABASE_SERVICE_ROLE_KEY=eyJ...     // Full database access!
+SUPABASE_SERVICE_ROLE_KEY=[JWT_TOKEN_REDACTED]     // Full database access!
 STRIPE_SECRET_KEY=sk_live_...         // Can charge cards!
 DATABASE_URL=postgresql://...          // Direct DB access!
 JWT_SECRET=...                         // Can forge tokens!

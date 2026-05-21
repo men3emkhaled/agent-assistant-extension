@@ -460,7 +460,7 @@ export class AccountsPanelProvider {
           <div class="dashboard">
             <div class="stat-tile tile-claude"><div class="stat-label">Claude 3.5</div><div class="stat-val" id="val-c">${initialStats.claude}%</div></div>
             <div class="stat-tile tile-pro"><div class="stat-label">Gemini 1.5 Pro</div><div class="stat-val" id="val-p">${initialStats.geminiPro}%</div></div>
-            <div class="stat-tile tile-flash"><div class="stat-label">Gemini 1.5 Flash</div><div class="stat-val" id="val-f">${initialStats.geminiFlash}%</div></div>
+            <div class="stat-tile tile-flash"><div class="stat-label">Gemini 3.5 Flash</div><div class="stat-val" id="val-f">${initialStats.geminiFlash}%</div></div>
           </div>
           <div class="acc-list" id="account-list">${cardsHtml}</div>
         </div>

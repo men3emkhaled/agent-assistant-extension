@@ -4,6 +4,15 @@ All notable changes to the Agent Assistant ecosystem are documented here. This p
 
 ---
 
+## [1.1.0] - 2026-05-20
+### Model Dashboard Enhancements
+- **Gemini 3.5 Flash Support**: Updated the dashboard and sidebar tree view model display labels to natively show "Gemini 3.5 Flash" (and "Gemini Flash 3.5") to reflect the newest Gemini 3.5 Flash models.
+
+## [1.0.9] - 2026-05-20
+### Compatibility and Version Upgrades
+- **Antigravity Compatibility**: Upgraded VS Code/Editor engine target constraint to `>=1.85.0` to natively support newer environments running Code `2.0.1+` and avoid installation blocker warnings.
+- **Open VSX Optimization**: Refined compatibility patterns for seamless publishing and packaging on Open VSX.
+
 ## [1.0.8] - 2026-05-18
 ### Granular Skill Categorization
 - **Refined Folders**: Re-architected the Core Skills Tree View to use highly granular and targeted categories (e.g., separating a massive 150-skill "Cloud" folder into dedicated "AWS", "Azure", and "Google Cloud" folders).

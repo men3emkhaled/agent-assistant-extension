@@ -290,7 +290,7 @@ All API requests require authentication using Bearer tokens.
 **Response:**
 \`\`\`json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "[JWT_TOKEN_REDACTED]...",
   "expiresIn": 3600,
   "refreshToken": "refresh_token_here"
 }

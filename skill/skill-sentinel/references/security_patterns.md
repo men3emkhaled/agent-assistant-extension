@@ -41,8 +41,8 @@ if requests_used >= LIMIT:
 ### Secrets hardcoded
 ```python
 # RUIM: secret direto no codigo
-API_KEY = "sk-abc123def456"
-PASSWORD = "minha_senha_123"
+API_KEY = "[REDACTED_API_KEY]"
+PASSWORD = "[REDACTED_PASSWORD]"
 ```
 
 ### SQL injection via f-string

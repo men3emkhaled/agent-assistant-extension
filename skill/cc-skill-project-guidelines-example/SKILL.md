@@ -320,13 +320,13 @@ gcloud run deploy backend --source .
 # Frontend (.env.local)
 NEXT_PUBLIC_API_URL=https://api.example.com
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[JWT_TOKEN_REDACTED]
 
 # Backend (.env)
 DATABASE_URL=postgresql://...
 ANTHROPIC_API_KEY=sk-ant-...
 SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_KEY=eyJ...
+SUPABASE_KEY=[JWT_TOKEN_REDACTED]
 ```
 
 ---

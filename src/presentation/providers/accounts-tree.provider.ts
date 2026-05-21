@@ -102,7 +102,7 @@ export class AccountsTreeProvider implements vscode.TreeDataProvider<AccountTree
         const heroStats = {
           'Claude 4.6': findStat(['claude', 'sonnet', 'opus', 'haiku']),
           'Gemini Pro 3.1': findStat(['pro', 'google_one', 'ultra']),
-          'Gemini Flash 3': findStat(['flash'])
+          'Gemini Flash 3.5': findStat(['flash'])
         };
 
         Object.entries(heroStats).forEach(([name, value]) => {
