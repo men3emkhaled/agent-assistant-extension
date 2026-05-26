@@ -24,3 +24,11 @@ Gemini_Generated_Image_*.png
 Screenshot*.png
 decode.py
 query_db.py
+skill/**
+!skill/arabic-localization/**
+!skill/human-coder/**
+node_modules/**/*.map
+node_modules/**/*.ts
+node_modules/**/test/**
+node_modules/**/README.md
+node_modules/**/docs/**

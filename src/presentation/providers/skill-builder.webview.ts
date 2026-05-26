@@ -8,7 +8,7 @@ export class SkillBuilderWebview {
   private readonly _panel: vscode.WebviewPanel;
   private _disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(extensionUri: vscode.Uri, skillService: SkillService) {
+  public static createOrShow(extensionUri: vscode.Uri, skillService: SkillService, mode: 'custom' | 'project' = 'custom') {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -18,9 +18,11 @@ export class SkillBuilderWebview {
       return;
     }
 
+    const title = mode === 'project' ? 'Create Project Skill' : 'Create Custom Skill';
+
     const panel = vscode.window.createWebviewPanel(
       SkillBuilderWebview.viewType,
-      'Create Custom Skill',
+      title,
       column || vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -28,10 +30,10 @@ export class SkillBuilderWebview {
       }
     );
 
-    SkillBuilderWebview.currentPanel = new SkillBuilderWebview(panel, skillService);
+    SkillBuilderWebview.currentPanel = new SkillBuilderWebview(panel, skillService, mode);
   }
 
-  private constructor(panel: vscode.WebviewPanel, private skillService: SkillService) {
+  private constructor(panel: vscode.WebviewPanel, private skillService: SkillService, private mode: 'custom' | 'project' = 'custom') {
     this._panel = panel;
     this._panel.webview.html = this._getHtmlForWebview();
 
@@ -47,21 +49,32 @@ export class SkillBuilderWebview {
               return;
             }
 
+            const isProject = this.mode === 'project';
+            const prefix = isProject ? 'project' : 'custom';
+            const color = isProject ? '#3b82f6' : '#8b5cf6'; // blue for project, purple for custom
+
             const newSkill = {
-              id: 'custom-' + Date.now().toString(),
+              id: `${prefix}-${Date.now()}`,
               title,
-              category: category || 'Custom',
-              description: description || 'User-defined custom skill.',
-              tags: ['Custom'],
-              icon: 'person',
+              category: category || (isProject ? 'Project' : 'Custom'),
+              description: description || (isProject ? 'Project-scoped skill.' : 'User-defined custom skill.'),
+              tags: [isProject ? 'Project' : 'Custom'],
+              icon: isProject ? 'layers' : 'person',
               isActive: false,
-              color: '#8b5cf6', // purple indicator for custom
+              color,
               fullInstructions,
-              isCustom: true
+              isCustom: !isProject,
+              isProject,
             };
 
-            this.skillService.addCustomSkill(newSkill);
-            vscode.window.showInformationMessage(`Custom Skill "${title}" saved successfully!`);
+            if (isProject) {
+              this.skillService.addProjectSkill(newSkill);
+            } else {
+              this.skillService.addCustomSkill(newSkill);
+            }
+
+            const label = isProject ? 'Project Skill' : 'Custom Skill';
+            vscode.window.showInformationMessage(`${label} "${title}" saved successfully!`);
             this._panel.dispose();
             return;
         }
@@ -83,12 +96,16 @@ export class SkillBuilderWebview {
   }
 
   private _getHtmlForWebview(): string {
+    const isProject = this.mode === 'project';
+    const formTitle = isProject ? 'Create Project Skill' : 'Create Custom Skill';
+    const accentColor = isProject ? '#3b82f6' : '#8b5cf6';
+    const defaultCategory = isProject ? 'Project' : 'Custom';
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create Custom Skill</title>
+    <title>${formTitle}</title>
     <style>
         :root {
             --bg: var(--vscode-editor-background);
@@ -111,9 +128,20 @@ export class SkillBuilderWebview {
         }
         h1 {
             font-weight: 600;
-            margin-bottom: 24px;
-            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+            border-bottom: 3px solid ${accentColor};
             padding-bottom: 10px;
+            color: ${accentColor};
+        }
+        .scope-badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: ${accentColor}22;
+            color: ${accentColor};
+            margin-bottom: 20px;
+            font-weight: 500;
         }
         .form-group {
             margin-bottom: 16px;
@@ -165,7 +193,8 @@ export class SkillBuilderWebview {
     </style>
 </head>
 <body>
-    <h1>Create Custom Skill</h1>
+    <h1>${formTitle}</h1>
+    <div class="scope-badge">${isProject ? 'Workspace-scoped — active only for this project workspace' : 'Global — active across all workspaces'}</div>
     <form id="skillForm">
         <div class="form-group">
             <label for="title">Skill Title *</label>

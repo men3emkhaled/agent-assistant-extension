@@ -2,7 +2,7 @@
   "name": "agent-assistant",
   "displayName": "Agent Assistant",
   "description": "The definitive Expert Persona & Quota Management system for AI Agents. Empower your workflow with deep skill injection and real-time resource tracking.",
-  "version": "1.1.0",
+  "version": "1.3.0",
   "icon": "logo_square.png",
   "publisher": "Men3emkhaled",
   "repository": {
@@ -131,6 +131,26 @@
         "icon": "$(trash)"
       },
       {
+        "command": "agent-assistant.addProjectWorkspace",
+        "title": "Add Project Workspace Path",
+        "icon": "$(add)"
+      },
+      {
+        "command": "agent-assistant.deleteProjectSkill",
+        "title": "Delete Project Skill",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agent-assistant.deleteProjectFolder",
+        "title": "Remove Project Folder",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "agent-assistant.autoScanRecommendSkills",
+        "title": "Auto Scan & Recommend Skills",
+        "icon": "$(sync~spin)"
+      },
+      {
         "command": "agent-assistant.deleteSkill",
         "title": "Uninstall Skill",
         "icon": "$(trash)"
@@ -159,6 +179,11 @@
         "command": "agent-assistant.toggleCategorySkills",
         "title": "Toggle Whole Folder",
         "icon": "$(run-all)"
+      },
+      {
+        "command": "agent-assistant.detectTechStack",
+        "title": "Detect Workspace Tech-Stack",
+        "category": "Agent Assistant"
       }
     ],
     "viewsContainers": {
@@ -186,6 +211,11 @@
           "id": "agent-assistant.customSkillsView",
           "name": "Custom Skills",
           "icon": "resources/icons/sidebar-icon.svg"
+        },
+        {
+          "id": "agent-assistant.projectSkillsView",
+          "name": "Project Skills",
+          "icon": "resources/icons/sidebar-icon.svg"
         }
       ]
     },
@@ -204,6 +234,16 @@
         {
           "command": "agent-assistant.deleteCustomSkill",
           "when": "viewItem == customSkillItem",
+          "group": "inline"
+        },
+        {
+          "command": "agent-assistant.deleteProjectSkill",
+          "when": "viewItem == projectSkillItem",
+          "group": "inline"
+        },
+        {
+          "command": "agent-assistant.deleteProjectFolder",
+          "when": "viewItem == projectFolder",
           "group": "inline"
         },
         {
@@ -281,6 +321,16 @@
           "command": "agent-assistant.createCustomSkill",
           "when": "view == agent-assistant.customSkillsView",
           "group": "navigation"
+        },
+        {
+          "command": "agent-assistant.autoScanRecommendSkills",
+          "when": "view == agent-assistant.projectSkillsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "agent-assistant.addProjectWorkspace",
+          "when": "view == agent-assistant.projectSkillsView",
+          "group": "navigation@2"
         }
       ]
     },
@@ -341,6 +391,11 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically switch to another account when the active account's credit is depleted"
+        },
+        "antigravityAccounts.skillsMarketplaceUrl": {
+          "type": "string",
+          "default": "https://raw.githubusercontent.com/men3emkhaled/antigravity-accounts-extension/main/skills.json",
+          "description": "URL to the raw JSON registry of the Skill Marketplace on GitHub"
         }
       }
     }

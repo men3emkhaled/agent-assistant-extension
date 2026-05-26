@@ -78,6 +78,13 @@ export class SkillMarketplaceWebview {
             });
             break;
           case 'refresh':
+            await vscode.window.withProgress({
+              location: vscode.ProgressLocation.Notification,
+              title: "Refreshing marketplace from GitHub...",
+              cancellable: false
+            }, async () => {
+              await this._skillService.fetchMarketplaceSkillsFromGitHub();
+            });
             this.sendSkills();
             break;
         }
@@ -400,6 +407,12 @@ export class SkillMarketplaceWebview {
         <h1>Antigravity Skill Marketplace</h1>
         <div class="subtitle">Search, discover, and toggle standard agent skills for deep context injection.</div>
       </div>
+      <button class="toggle-btn" onclick="triggerSync()" style="height: 38px; display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+        <svg style="width:16px; height:16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89M9 11l3 3m0 0l3-3m-3 3V3"/>
+        </svg>
+        Sync GitHub Skills
+      </button>
     </div>
 
     <div class="controls">
@@ -525,6 +538,10 @@ export class SkillMarketplaceWebview {
 
     function installSkill(id) {
       vscode.postMessage({ command: 'installSkill', id });
+    }
+
+    function triggerSync() {
+      vscode.postMessage({ command: 'refresh' });
     }
 
     function openSkillFile(id) {

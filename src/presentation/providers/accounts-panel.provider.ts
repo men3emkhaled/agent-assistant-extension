@@ -112,33 +112,49 @@ export class AccountsPanelProvider {
 
     const getHeroStats = (acc: any) => {
       const balances = acc?.balances || {};
-      const findStat = (patterns: string[]) => {
-        let minVal = 101; // Higher than 100 to detect first match
-        let found = false;
+      const findModelStat = (patterns: string[], excludePatterns: string[] = []) => {
+        let minModelVal = 101;
+        let foundModel = false;
+        let minCreditVal = 101;
+        let foundCredit = false;
+
         for (const key of Object.keys(balances)) {
           const lk = key.toLowerCase();
-          if (lk && patterns.some(p => lk.includes(p))) {
+          if (!lk) {continue;}
+          if (excludePatterns.length > 0 && excludePatterns.some(ep => lk.includes(ep))) {continue;}
+          if (lk.startsWith('chat') || lk.startsWith('tap') || lk.startsWith('tab') || lk.startsWith('gpt')) {continue;}
+
+          if (patterns.some(p => lk.includes(p))) {
             const val = balances[key];
-            const current = typeof val === 'number' ? val : (val as any)?.value || 0;
-            if (current < minVal) {
-              minVal = current;
-              found = true;
+            if (typeof val === 'object' && val !== null && 'value' in val) {
+              const current = val.value || 0;
+              if (current < minModelVal) {
+                minModelVal = current;
+                foundModel = true;
+              }
+            } else {
+              const current = typeof val === 'number' ? val : Number(val);
+              if (!isNaN(current) && current < minCreditVal) {
+                minCreditVal = current;
+                foundCredit = true;
+              }
             }
           }
         }
-        return found ? minVal : 0;
+        if (foundModel) {return minModelVal;}
+        if (foundCredit) {return minCreditVal;}
+        return 0;
       };
 
       return {
-        claude: findStat(['claude', 'sonnet', 'opus', 'haiku']),
-        geminiPro: findStat(['pro', 'google_one', 'ultra']),
-        geminiFlash: findStat(['flash'])
+        claude: findModelStat(['claude', 'sonnet', 'opus', 'haiku']),
+        gemini: findModelStat(['gemini', 'flash'], ['claude'])
       };
     };
 
     const accountsDataForJs = sortedAccounts.map(a => ({ email: a.email, stats: getHeroStats(a) }));
     const activeAcc = sortedAccounts.find(a => a.email === activeEmail) || sortedAccounts[0];
-    const initialStats = activeAcc ? getHeroStats(activeAcc) : { claude: 0, geminiPro: 0, geminiFlash: 0 };
+    const initialStats = activeAcc ? getHeroStats(activeAcc) : { claude: 0, gemini: 0 };
 
     const cardsHtml = sortedAccounts.map(acc => `
       <div class="acc-card ${acc.email === activeEmail ? 'active' : ''} ${isRefreshing ? 'refreshing' : ''}" id="card-${acc.email.replace(/[@.]/g, '-')}" onclick="previewAcc('${acc.email}')">
@@ -238,7 +254,7 @@ export class AccountsPanelProvider {
         .icon-btn.spinning svg { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        .dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 16px; }
+        .dashboard { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 16px; }
         .stat-tile { 
           background: var(--glass-bg); border: 1px solid var(--glass-border); 
           padding: 14px 8px; border-radius: var(--radius-md); 
@@ -458,9 +474,8 @@ export class AccountsPanelProvider {
 
         <div id="tab-accounts" class="tab-content active">
           <div class="dashboard">
-            <div class="stat-tile tile-claude"><div class="stat-label">Claude 3.5</div><div class="stat-val" id="val-c">${initialStats.claude}%</div></div>
-            <div class="stat-tile tile-pro"><div class="stat-label">Gemini 1.5 Pro</div><div class="stat-val" id="val-p">${initialStats.geminiPro}%</div></div>
-            <div class="stat-tile tile-flash"><div class="stat-label">Gemini 3.5 Flash</div><div class="stat-val" id="val-f">${initialStats.geminiFlash}%</div></div>
+            <div class="stat-tile tile-claude"><div class="stat-label">Claude</div><div class="stat-val" id="val-c">${initialStats.claude}%</div></div>
+            <div class="stat-tile tile-pro"><div class="stat-label">Gemini</div><div class="stat-val" id="val-g">${initialStats.gemini}%</div></div>
           </div>
           <div class="acc-list" id="account-list">${cardsHtml}</div>
         </div>
@@ -557,13 +572,11 @@ export class AccountsPanelProvider {
           if (accs.length === 0) return updateStats(null);
           const totals = accs.reduce((acc, curr) => ({
             claude: acc.claude + curr.stats.claude, 
-            geminiPro: acc.geminiPro + curr.stats.geminiPro, 
-            geminiFlash: acc.geminiFlash + curr.stats.geminiFlash
-          }), { claude: 0, geminiPro: 0, geminiFlash: 0 });
+            gemini: acc.gemini + curr.stats.gemini
+          }), { claude: 0, gemini: 0 });
           updateStats({
             claude: Math.round(totals.claude / accs.length),
-            geminiPro: Math.round(totals.geminiPro / accs.length),
-            geminiFlash: Math.round(totals.geminiFlash / accs.length)
+            gemini: Math.round(totals.gemini / accs.length)
           });
         }
 
@@ -590,8 +603,7 @@ export class AccountsPanelProvider {
 
         function updateStats(stats) {
           document.getElementById('val-c').innerText = (stats ? stats.claude : 0) + '%';
-          document.getElementById('val-p').innerText = (stats ? stats.geminiPro : 0) + '%';
-          document.getElementById('val-f').innerText = (stats ? stats.geminiFlash : 0) + '%';
+          document.getElementById('val-g').innerText = (stats ? stats.gemini : 0) + '%';
         }
       </script>
     </body>

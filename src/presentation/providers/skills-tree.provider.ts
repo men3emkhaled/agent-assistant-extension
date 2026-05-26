@@ -7,7 +7,7 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
   readonly onDidChangeTreeData: vscode.Event<vscode.TreeItem | undefined | void> = this._onDidChangeTreeData.event;
 
   dropMimeTypes = ['application/vnd.code.tree.agent-assistant.skills'];
-  dragMimeTypes = ['application/vnd.code.tree.agent-assistant.skills'];
+  dragMimeTypes = ['application/vnd.code.tree.agent-assistant.skills', 'application/vnd.code.tree.projectskills'];
 
   constructor(private skillService: SkillService) {
     skillService.onDidChangeSkills(() => this.refresh());
@@ -15,6 +15,15 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
 
   public async handleDrag(source: readonly vscode.TreeItem[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {
     dataTransfer.set('application/vnd.code.tree.agent-assistant.skills', new vscode.DataTransferItem(source));
+
+    const dragItems = source.filter((item): item is SkillTreeItem => item instanceof SkillTreeItem);
+    if (dragItems.length > 0) {
+      const payload = dragItems.map(item => ({
+        skill: item.skill,
+        sourcePath: ''
+      }));
+      dataTransfer.set('application/vnd.code.tree.projectskills', new vscode.DataTransferItem(JSON.stringify(payload)));
+    }
   }
 
   public async handleDrop(target: vscode.TreeItem | undefined, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<void> {

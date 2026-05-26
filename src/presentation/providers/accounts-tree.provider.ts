@@ -81,28 +81,44 @@ export class AccountsTreeProvider implements vscode.TreeDataProvider<AccountTree
         const balanceKeys = Object.keys(balances);
 
         // Filter and map only the requested models with fuzzy matching
-        const findStat = (patterns: string[]) => {
-          let minVal = 101;
-          let found = false;
+        const findModelStat = (patterns: string[], excludePatterns: string[] = []) => {
+          let minModelVal = 101;
+          let foundModel = false;
+          let minCreditVal = 101;
+          let foundCredit = false;
+
           for (const key of Object.keys(balances)) {
             const lk = key.toLowerCase();
+            if (!lk) {continue;}
+            if (excludePatterns.length > 0 && excludePatterns.some(ep => lk.includes(ep))) {continue;}
+            if (lk.startsWith('chat') || lk.startsWith('tap') || lk.startsWith('tab') || lk.startsWith('gpt')) {continue;}
+
             if (patterns.some(p => lk.includes(p))) {
               const val = balances[key];
-              const current = typeof val === 'number' ? val : (val as any)?.value || 0;
-              if (current < minVal) {
-                minVal = current;
-                found = true;
+              if (typeof val === 'object' && val !== null && 'value' in val) {
+                const current = val.value || 0;
+                if (current < minModelVal) {
+                  minModelVal = current;
+                  foundModel = true;
+                }
+              } else {
+                const current = typeof val === 'number' ? val : Number(val);
+                if (!isNaN(current) && current < minCreditVal) {
+                  minCreditVal = current;
+                  foundCredit = true;
+                }
               }
             }
           }
-          return found ? minVal : 0;
+          if (foundModel) {return minModelVal;}
+          if (foundCredit) {return minCreditVal;}
+          return 0;
         };
 
         const balanceItems: AccountTreeItem[] = [];
         const heroStats = {
-          'Claude 4.6': findStat(['claude', 'sonnet', 'opus', 'haiku']),
-          'Gemini Pro 3.1': findStat(['pro', 'google_one', 'ultra']),
-          'Gemini Flash 3.5': findStat(['flash'])
+          'Claude': findModelStat(['claude', 'sonnet', 'opus', 'haiku']),
+          'Gemini': findModelStat(['gemini', 'flash'], ['claude'])
         };
 
         Object.entries(heroStats).forEach(([name, value]) => {

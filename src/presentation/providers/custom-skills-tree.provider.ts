@@ -1,9 +1,16 @@
 import * as vscode from 'vscode';
 import { SkillService, Skill } from '../../features/skills/skill.service';
 
-export class CustomSkillsTreeProvider implements vscode.TreeDataProvider<CustomSkillTreeItem> {
+export class CustomSkillsTreeProvider
+  implements
+    vscode.TreeDataProvider<CustomSkillTreeItem>,
+    vscode.TreeDragAndDropController<CustomSkillTreeItem>
+{
   private _onDidChangeTreeData: vscode.EventEmitter<CustomSkillTreeItem | undefined | void> = new vscode.EventEmitter<CustomSkillTreeItem | undefined | void>();
   readonly onDidChangeTreeData: vscode.Event<CustomSkillTreeItem | undefined | void> = this._onDidChangeTreeData.event;
+
+  dragMimeTypes = ['application/vnd.code.tree.projectskills'];
+  dropMimeTypes = [];
 
   constructor(private skillService: SkillService) {
     skillService.onDidChangeSkills(() => this.refresh());
@@ -22,9 +29,21 @@ export class CustomSkillsTreeProvider implements vscode.TreeDataProvider<CustomS
       return Promise.resolve([]);
     }
 
-    const customSkills = this.skillService.getInstalledSkills().filter(skill => skill.isCustom);
+    // Global custom skills only (isCustom: true, not project-scoped)
+    const customSkills = this.skillService.getInstalledSkills().filter(skill => skill.isCustom && !skill.isProject);
     
     return Promise.resolve(customSkills.map(skill => new CustomSkillTreeItem(skill)));
+  }
+
+  public handleDrag(
+    source: readonly CustomSkillTreeItem[],
+    dataTransfer: vscode.DataTransfer
+  ): void {
+    const payload = source.map(item => ({
+      skill: item.skill,
+      sourcePath: ''
+    }));
+    dataTransfer.set('application/vnd.code.tree.projectskills', new vscode.DataTransferItem(JSON.stringify(payload)));
   }
 }
 
@@ -42,7 +61,6 @@ export class CustomSkillTreeItem extends vscode.TreeItem {
 
     this.contextValue = 'customSkillItem';
     
-    // Clicking the item toggles it
     this.command = {
       command: 'agent-assistant.toggleSkillSidebar',
       title: 'Toggle Skill',

@@ -4,6 +4,15 @@ All notable changes to the Agent Assistant ecosystem are documented here. This p
 
 ---
 
+## [1.2.0] - 2026-05-22
+### Unified Model Dashboard & Smart Workspace Features
+- **Gemini Model Merge**: Consolidated Gemini Pro and Gemini Flash into a single unified "Gemini" tile across the dashboard, sidebar tree view, and status bar for a cleaner layout matching the Claude tile.
+- **Gemini Quota Fix**: Fixed incorrect Gemini quota calculation caused by mixing model-quota objects with raw credit numbers and overly broad pattern matching (e.g., `'pro'` matching unrelated keys). All three display layers (Status Bar, Panel Dashboard, Sidebar Tree) now use a precise `findModelStat` engine that separates model percentages from credit values and applies exclude patterns to prevent cross-matching.
+- **Real-Time Status Bar**: Status bar now auto-updates instantly on account changes via event subscription. Removed the money icon for a cleaner `Gemini/Claude` display format.
+- **Workspace-Scoped Skill Profiles**: Active skills are now saved per-workspace in `.antigravity/active_skills.json`. Opening a project automatically restores the skill configuration specific to that workspace.
+- **Smart Tech-Stack Detection**: On activation, the extension scans `package.json`, `requirements.txt`, `Dockerfile`, and `prisma/` to detect the project's tech stack and recommend relevant expert skills via a non-intrusive notification.
+- **Detect Tech-Stack Command**: Registered `Agent Assistant: Detect Workspace Tech-Stack` in the Command Palette for manual re-scanning at any time.
+
 ## [1.1.0] - 2026-05-20
 ### Model Dashboard Enhancements
 - **Gemini 3.5 Flash Support**: Updated the dashboard and sidebar tree view model display labels to natively show "Gemini 3.5 Flash" (and "Gemini Flash 3.5") to reflect the newest Gemini 3.5 Flash models.

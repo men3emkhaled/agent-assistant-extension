@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { Logger } from './core/utils/logger';
 import { ExtensionConfig } from './core/config/extension.config';
 
@@ -18,6 +19,7 @@ import { AccountsPanelProvider } from './presentation/providers/accounts-panel.p
 import { SkillService } from './features/skills/skill.service';
 import { SkillsTreeProvider } from './presentation/providers/skills-tree.provider';
 import { CustomSkillsTreeProvider } from './presentation/providers/custom-skills-tree.provider';
+import { ProjectSkillsTreeProvider } from './presentation/providers/project-skills-tree.provider';
 import { SkillBuilderWebview } from './presentation/providers/skill-builder.webview';
 import { SkillMarketplaceWebview } from './presentation/providers/skill-marketplace.webview';
 import { PersonaDiagnosticProvider } from './presentation/providers/persona-diagnostic.provider';
@@ -63,7 +65,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(skillsTreeView);
 
     const customSkillsTreeProvider = new CustomSkillsTreeProvider(skillService);
-    vscode.window.registerTreeDataProvider('agent-assistant.customSkillsView', customSkillsTreeProvider);
+    const customSkillsTreeView = vscode.window.createTreeView('agent-assistant.customSkillsView', {
+      treeDataProvider: customSkillsTreeProvider,
+      dragAndDropController: customSkillsTreeProvider
+    });
+    customSkillsTreeView.message = '🔧 Global skills active across all your workspaces.';
+    context.subscriptions.push(customSkillsTreeView);
+
+    const projectSkillsTreeProvider = new ProjectSkillsTreeProvider(skillService);
+    const projectSkillsTreeView = vscode.window.createTreeView('agent-assistant.projectSkillsView', {
+      treeDataProvider: projectSkillsTreeProvider,
+      dragAndDropController: projectSkillsTreeProvider,
+      canSelectMany: true
+    });
+    projectSkillsTreeView.message = '📁 Multi-project scoped agent skills.';
+    context.subscriptions.push(projectSkillsTreeView);
 
     const statusBarProvider = new StatusBarProvider(accountRepo, accountService);
     context.subscriptions.push(statusBarProvider);
@@ -73,14 +89,66 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(personaDiagnosticProvider);
 
     // 4. Register Commands (Crucial for UI to be responsive)
-    const commands = registerCommands(context, skillService, accountService, accountRepo, accountsTreeProvider, skillsTreeProvider, customSkillsTreeProvider, panelProvider);
+    const commands = registerCommands(context, skillService, accountService, accountRepo, accountsTreeProvider, skillsTreeProvider, customSkillsTreeProvider, projectSkillsTreeProvider, panelProvider);
     context.subscriptions.push(...commands);
 
     // 5. Start Background Tasks (Non-blocking)
     accountService.startBackgroundMonitor();
     
     // 6. Initialize Skill State & Workspace Injection (May take time, so do last)
-    skillService.loadState().catch((err: unknown) => {
+    skillService.loadState().then(() => {
+      skillService.detectTechStackAndRecommend().catch(err => {
+        Logger.getInstance().error('Failed to run tech stack detection', err);
+      });
+
+      // 7. Watch for any changes in global skill folder (skill/**/SKILL.md)
+      const globalWatcher = vscode.workspace.createFileSystemWatcher('**/skill/**/SKILL.md');
+      globalWatcher.onDidCreate(async (uri) => {
+        await skillService.loadState();
+        skillsTreeProvider.refresh();
+
+        const skillFolderUri = vscode.Uri.joinPath(uri, '..');
+        const skillId = skillFolderUri.path.split('/').pop();
+        if (!skillId) return;
+
+        const currentPath = skillService.getCurrentWorkspacePath();
+        if (!currentPath) return;
+
+        const projectSkillsMap = skillService.getProjectSkillsMap();
+        const existing = projectSkillsMap[currentPath] || [];
+        if (existing.some(s => s.id === skillId)) return;
+
+        const parsedSkill = await (skillService as any).parseSkillFromMd(skillFolderUri, skillId);
+        if (parsedSkill) {
+          await skillService.addSkillToSpecificProject(currentPath, parsedSkill);
+          projectSkillsTreeProvider.refresh();
+          vscode.window.showInformationMessage(`New skill detected: "${parsedSkill.title}" added to current project.`);
+        }
+      });
+      globalWatcher.onDidChange(async () => {
+        await skillService.loadState();
+        skillsTreeProvider.refresh();
+      });
+      globalWatcher.onDidDelete(async () => {
+        await skillService.loadState();
+        skillsTreeProvider.refresh();
+      });
+      context.subscriptions.push(globalWatcher);
+
+      // 8. Watch for any changes in workspace project skills (.antigravity/skills/**/SKILL.md)
+      const projectSkillsWatcher = vscode.workspace.createFileSystemWatcher('**/.antigravity/skills/**/SKILL.md');
+      const handleSync = async (uri: vscode.Uri) => {
+        const workspacePath = skillService.getWorkspacePathForUri(uri);
+        if (workspacePath) {
+          await skillService.syncWorkspaceFolderSkills(workspacePath);
+          projectSkillsTreeProvider.refresh();
+        }
+      };
+      projectSkillsWatcher.onDidCreate(handleSync);
+      projectSkillsWatcher.onDidChange(handleSync);
+      projectSkillsWatcher.onDidDelete(handleSync);
+      context.subscriptions.push(projectSkillsWatcher);
+    }).catch((err: unknown) => {
       Logger.getInstance().error('Failed to initialize skills', err);
     });
 
@@ -104,6 +172,7 @@ function registerCommands(
   accountsTreeProvider: AccountsTreeProvider,
   skillsTreeProvider: SkillsTreeProvider,
   customSkillsTreeProvider: CustomSkillsTreeProvider,
+  projectSkillsTreeProvider: ProjectSkillsTreeProvider,
   panelProvider: AccountsPanelProvider
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
@@ -197,8 +266,47 @@ function registerCommands(
   );
 
   disposables.push(
-    vscode.commands.registerCommand('agent-assistant.toggleSkillSidebar', (id: string) => {
-      skillService.toggleSkill(id);
+    vscode.commands.registerCommand('agent-assistant.toggleSkillSidebar', async (id: string) => {
+      if (id.startsWith('project-')) {
+        const projectSkillsMap = skillService.getProjectSkillsMap();
+        for (const [workspacePath, skills] of Object.entries(projectSkillsMap)) {
+          const match = skills.find(s => s.id === id);
+          if (match) {
+            await skillService.toggleProjectSkillInWorkspace(id, workspacePath);
+            projectSkillsTreeProvider.refresh();
+            break;
+          }
+        }
+      } else {
+        const skill = skillService.getAvailableSkills().find(s => s.id === id) || skillService.getInstalledSkills().find(s => s.id === id);
+        if (!skill) return;
+
+        const projectSkillsMap = skillService.getProjectSkillsMap();
+        const workspaces = Object.keys(projectSkillsMap);
+
+        if (workspaces.length === 0) {
+          vscode.window.showErrorMessage('No project folders registered. Please add a project first.');
+          return;
+        }
+
+        const items = workspaces.map(w => ({
+          label: path.basename(w),
+          description: w,
+          workspacePath: w
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: `Select project folder to add skill "${skill.title}" to`
+        });
+
+        if (selected) {
+          const added = await skillService.addSkillToWorkspacePath(selected.workspacePath, id);
+          if (added) {
+            vscode.window.showInformationMessage(`Added skill "${skill.title}" to project "${selected.label}".`);
+            projectSkillsTreeProvider.refresh();
+          }
+        }
+      }
       skillsTreeProvider.refresh();
       customSkillsTreeProvider.refresh();
       panelProvider.refresh();
@@ -207,7 +315,56 @@ function registerCommands(
 
   disposables.push(
     vscode.commands.registerCommand('agent-assistant.createCustomSkill', () => {
-      SkillBuilderWebview.createOrShow(context.extensionUri, skillService);
+      SkillBuilderWebview.createOrShow(context.extensionUri, skillService, 'custom');
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.addProjectWorkspace', async () => {
+      const options: vscode.OpenDialogOptions = {
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'Select Project Workspace Folder'
+      };
+      const folderUri = await vscode.window.showOpenDialog(options);
+      if (folderUri && folderUri.length > 0) {
+        const projectPath = folderUri[0].fsPath;
+        await skillService.addProjectWorkspacePath(projectPath);
+        projectSkillsTreeProvider.refresh();
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.toggleProjectSkillInWorkspace', async (id: string, workspacePath: string) => {
+      await skillService.toggleProjectSkillInWorkspace(id, workspacePath);
+      projectSkillsTreeProvider.refresh();
+      panelProvider.refresh();
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.deleteProjectSkill', async (item: any) => {
+      if (item && item.skill && item.workspacePath) {
+        const confirm = await vscode.window.showWarningMessage(`Uninstall project skill '${item.skill.title}'?`, 'Yes', 'No');
+        if (confirm === 'Yes') {
+          await skillService.deleteProjectSkillFromSpecificWorkspace(item.workspacePath, item.skill.id);
+          projectSkillsTreeProvider.refresh();
+        }
+      }
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.deleteProjectFolder', async (item: any) => {
+      if (item && item.workspacePath) {
+        const confirm = await vscode.window.showWarningMessage(`Remove project folder '${item.workspaceName}' from list?`, 'Yes', 'No');
+        if (confirm === 'Yes') {
+          await skillService.removeProjectWorkspacePath(item.workspacePath);
+          projectSkillsTreeProvider.refresh();
+        }
+      }
     })
   );
 
@@ -345,12 +502,71 @@ function registerCommands(
   disposables.push(
     vscode.commands.registerCommand('agent-assistant.deleteCustomSkill', async (item: any) => {
       if (item && item.skill && item.skill.id) {
-        const confirm = await vscode.window.showWarningMessage(`Are you sure you want to delete custom skill '${item.skill.title}'?`, 'Yes', 'No');
+        const confirm = await vscode.window.showWarningMessage(`Delete custom skill '${item.skill.title}'?`, 'Yes', 'No');
         if (confirm === 'Yes') {
           skillService.deleteCustomSkill(item.skill.id);
           customSkillsTreeProvider.refresh();
         }
       }
+    })
+  );
+
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.autoScanRecommendSkills', async () => {
+      if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+        vscode.window.showWarningMessage('Please open a workspace folder to scan for project skills.');
+        return;
+      }
+
+      await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Scanning workspace for optimal AI skills...",
+        cancellable: false
+      }, async () => {
+        const recommendations = await skillService.scanWorkspaceForRecommendations();
+
+        if (recommendations.length === 0) {
+          vscode.window.showInformationMessage('No specific skills recommended for your current tech-stack.');
+          return;
+        }
+
+        const items = recommendations.map(rec => ({
+          label: rec.skill.title,
+          description: `${rec.skill.category} (Matches: ${rec.matchedKeywords.slice(0, 5).join(', ')})`,
+          detail: rec.skill.description,
+          skillId: rec.skill.id,
+          picked: true
+        }));
+
+        const selectedItems = await vscode.window.showQuickPick(items, {
+          canPickMany: true,
+          placeHolder: 'Select the optimal skills to install in this project',
+          title: 'Workspace Skill Recommendations'
+        });
+
+        if (selectedItems && selectedItems.length > 0) {
+          const currentPath = skillService.getCurrentWorkspacePath();
+          if (!currentPath) {
+            vscode.window.showErrorMessage('No active workspace detected.');
+            return;
+          }
+
+          let count = 0;
+          for (const item of selectedItems) {
+            const added = await skillService.addSkillToWorkspacePath(currentPath, item.skillId);
+            if (added) count++;
+          }
+
+          if (count > 0) {
+            vscode.window.showInformationMessage(`Installed ${count} skills into this project!`);
+            projectSkillsTreeProvider.refresh();
+            if (SkillMarketplaceWebview.currentPanel) {
+              SkillMarketplaceWebview.currentPanel.sendSkills();
+            }
+          }
+        }
+      });
     })
   );
 
@@ -369,6 +585,12 @@ function registerCommands(
   disposables.push(
     vscode.commands.registerCommand('agent-assistant.refreshBalances', async () => {
       await accountService.refreshBalancesWorkflow(true);
+    })
+  );
+
+  disposables.push(
+    vscode.commands.registerCommand('agent-assistant.detectTechStack', async () => {
+      await skillService.detectTechStackAndRecommend();
     })
   );
 

@@ -14,6 +14,7 @@ import { AccountService } from '../../features/accounts/account.service';
 
 export class StatusBarProvider implements vscode.Disposable {
   private statusBarItem: vscode.StatusBarItem;
+  private disposables: vscode.Disposable[] = [];
 
   constructor(
     private accountRepo: IAccountRepository,
@@ -22,6 +23,13 @@ export class StatusBarProvider implements vscode.Disposable {
     // Create item aligned to the right, priority 100 (pushes it to the far right)
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.statusBarItem.command = 'agent-assistant.switchAccount';
+    
+    // Update on account changes
+    this.disposables.push(
+      this.accountService.onAccountsChanged(() => {
+        this.update();
+      })
+    );
     
     // Perform initial render
     this.update();
@@ -48,37 +56,60 @@ export class StatusBarProvider implements vscode.Disposable {
       return;
     }
 
-    // Build the display text: e.g., 🔄 ahmed@gmail.com | 💰 150/100/20
+    // Build the display text
     const displayName = activeAccount.alias || activeAccount.email.split('@')[0];
     
-    // Apply the same filtering/exclusion pipeline used in the main UI
-    const { models, credits } = this.filterBalances(activeAccount.balances);
+    // Find the minimum quota percentage for a model family.
+    // Only considers model-quota objects (with 'value' property from fetchAvailableModels).
+    // Falls back to credit numbers only if no model objects matched.
+    const findModelStat = (patterns: string[], excludePatterns: string[] = []) => {
+      const balances = activeAccount.balances || {};
+      let minModelVal = 101;
+      let foundModel = false;
+      let minCreditVal = 101;
+      let foundCredit = false;
 
-    // Build short credits text for the status bar
-    let creditsText = '?';
-    if (models.length > 0 || credits.length > 0) {
-      const allValues = [
-        ...credits.map(c => c.value),
-        ...models.map(m => m.value),
-      ];
-      creditsText = allValues.map(v => v.toLocaleString()).join('/');
-    }
-    
-    this.statusBarItem.text = `$(hubot) ${displayName} | 💰 ${creditsText}`;
-    
-    // Build detailed tooltip with filtered models and credits
-    let balancesTooltip = 'No balance data';
-    if (models.length > 0 || credits.length > 0) {
-      const lines: string[] = [];
-      for (const c of credits) {
-        lines.push(`💳 ${c.key}: ${c.value.toLocaleString()}`);
+      for (const key of Object.keys(balances)) {
+        const lk = key.toLowerCase();
+        if (!lk) {continue;}
+        // Skip if matches any exclude pattern
+        if (excludePatterns.length > 0 && excludePatterns.some(ep => lk.includes(ep))) {continue;}
+        // Skip common non-model prefixes
+        if (lk.startsWith('chat') || lk.startsWith('tap') || lk.startsWith('tab') || lk.startsWith('gpt')) {continue;}
+
+        if (patterns.some(p => lk.includes(p))) {
+          const val = balances[key];
+          if (typeof val === 'object' && val !== null && 'value' in val) {
+            // Model quota object (percentage 0-100)
+            const current = val.value || 0;
+            if (current < minModelVal) {
+              minModelVal = current;
+              foundModel = true;
+            }
+          } else {
+            // Credit number — only use as fallback
+            const current = typeof val === 'number' ? val : Number(val);
+            if (!isNaN(current) && current < minCreditVal) {
+              minCreditVal = current;
+              foundCredit = true;
+            }
+          }
+        }
       }
-      for (const m of models) {
-        const resetInfo = m.resetTime ? ` (reset: ${new Date(m.resetTime).toLocaleDateString()})` : '';
-        lines.push(`🤖 ${m.key}: ${m.value}%${resetInfo}`);
-      }
-      balancesTooltip = lines.join('\n');
-    }
+      // Prefer model percentage over raw credit numbers
+      if (foundModel) {return minModelVal;}
+      if (foundCredit) {return minCreditVal;}
+      return 0;
+    };
+
+    const claudeVal = findModelStat(['claude', 'sonnet', 'opus', 'haiku']);
+    const geminiVal = findModelStat(['gemini', 'flash'], ['claude']);
+    
+    // Layout: Gemini/Claude with NO money icon
+    this.statusBarItem.text = `$(hubot) ${displayName} | ${geminiVal}/${claudeVal}`;
+    
+    // Build detailed tooltip
+    const balancesTooltip = `Gemini: ${geminiVal}%\nClaude: ${claudeVal}%`;
       
     this.statusBarItem.tooltip = `${activeAccount.email}\n${balancesTooltip}\n\n${i18n.t('statusBar.tooltip')}`;
 
@@ -233,6 +264,7 @@ export class StatusBarProvider implements vscode.Disposable {
    */
   dispose() {
     this.statusBarItem.dispose();
+    this.disposables.forEach(d => d.dispose());
   }
 }
 
