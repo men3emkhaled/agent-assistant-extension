@@ -65,6 +65,25 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
   getChildren(element?: vscode.TreeItem): Thenable<vscode.TreeItem[]> {
     let skills = this.skillService.getInstalledSkills();
     
+    // Ensure we only show actual global expert skills
+    skills = skills.filter(s => !s.isProject && !s.id.startsWith('project-'));
+
+    // STRICT FILTER: Exclude skills already added to the current workspace project
+    const currentPath = this.skillService.getCurrentWorkspacePath();
+    if (currentPath) {
+      const projectSkillsMap = this.skillService.getProjectSkillsMap();
+      const projectSkills = projectSkillsMap[currentPath] || [];
+      const projectBaseIds = new Set(projectSkills.map(s => {
+        let base = s.id.replace(/^project-/, '');
+        const parts = base.split('-');
+        if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+          parts.pop();
+        }
+        return parts.join('-');
+      }));
+      skills = skills.filter(skill => !projectBaseIds.has(skill.id));
+    }
+    
     if (this.filterQuery) {
       skills = skills.filter(skill => 
         skill.title.toLowerCase().includes(this.filterQuery) || 
@@ -109,8 +128,7 @@ export class SkillsTreeProvider implements vscode.TreeDataProvider<vscode.TreeIt
     });
 
     for (const [category, groupSkills] of groups.entries()) {
-      const activeCount = groupSkills.filter(s => s.isActive).length;
-      items.push(new CategoryTreeItem(category, groupSkills.length, activeCount));
+      items.push(new CategoryTreeItem(category, groupSkills.length));
     }
 
     standalone.forEach(skill => {
@@ -136,30 +154,28 @@ class SkillTreeItem extends vscode.TreeItem {
     super(skill.title, vscode.TreeItemCollapsibleState.None);
 
     this.tooltip = `${skill.category}: ${skill.description}`;
-    this.description = skill.isActive ? 'ACTIVE' : '';
+    this.description = '';
     
-    // Use native codicons for simple, theme-adaptive look
     this.iconPath = new vscode.ThemeIcon(
-      skill.isActive ? 'pass-filled' : 'circle-outline',
-      new vscode.ThemeColor(skill.isActive ? 'charts.green' : 'disabledForeground')
+      'zap',
+      new vscode.ThemeColor('charts.blue')
     );
 
     this.contextValue = 'skillItem';
     
-    // Clicking the item toggles it
     this.command = {
       command: 'agent-assistant.toggleSkillSidebar',
-      title: 'Toggle Skill',
+      title: 'Add Skill to Project',
       arguments: [skill.id]
     };
   }
 }
 
 export class CategoryTreeItem extends vscode.TreeItem {
-  constructor(public readonly categoryName: string, count: number, activeCount: number) {
+  constructor(public readonly categoryName: string, count: number) {
     super(categoryName, vscode.TreeItemCollapsibleState.Collapsed);
     this.contextValue = 'categoryItem';
-    this.description = activeCount > 0 ? `${activeCount}/${count} ACTIVE` : `${count} skills`;
+    this.description = `${count} skills`;
     this.iconPath = new vscode.ThemeIcon('folder');
   }
 }

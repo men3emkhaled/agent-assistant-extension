@@ -1,17 +1,17 @@
 <available_skills>
   <skill>
-    <name>arabic-localization</name>
+    <name>project-arabic-localization-1779797218024</name>
     <description>Ensure proper Right-to-Left text alignment for Arabic communication.</description>
-    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/arabic-localization/SKILL.md</location>
+    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/project-arabic-localization-1779797218024/SKILL.md</location>
   </skill>
   <skill>
-    <name>human-coder</name>
+    <name>project-human-coder-1779797242784</name>
     <description>Professional human-like communication. Eliminates AI markers and excessive emojis.</description>
-    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/human-coder/SKILL.md</location>
+    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/project-human-coder-1779797242784/SKILL.md</location>
   </skill>
   <skill>
-    <name>project-3d-1779794089483</name>
-    <description>Project skill: 3d Web Experience</description>
-    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/project-3d-1779794089483/SKILL.md</location>
+    <name>project-api-security-testing-1779798765928</name>
+    <description>API security testing workflow for REST and GraphQL APIs covering authentication, authorization, rate limiting, input validation, and security best practices.</description>
+    <location>/home/men3emk1/Documents/antigravity-hub-extension/antigravity-accounts-extension/.antigravity/skills/project-api-security-testing-1779798765928/SKILL.md</location>
   </skill>
 </available_skills>

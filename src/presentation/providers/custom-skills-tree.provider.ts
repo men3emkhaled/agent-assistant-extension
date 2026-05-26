@@ -30,7 +30,23 @@ export class CustomSkillsTreeProvider
     }
 
     // Global custom skills only (isCustom: true, not project-scoped)
-    const customSkills = this.skillService.getInstalledSkills().filter(skill => skill.isCustom && !skill.isProject);
+    let customSkills = this.skillService.getInstalledSkills().filter(skill => skill.isCustom && !skill.isProject && !skill.id.startsWith('project-'));
+    
+    // STRICT FILTER: Exclude skills already added to the current workspace project
+    const currentPath = this.skillService.getCurrentWorkspacePath();
+    if (currentPath) {
+      const projectSkillsMap = this.skillService.getProjectSkillsMap();
+      const projectSkills = projectSkillsMap[currentPath] || [];
+      const projectBaseIds = new Set(projectSkills.map(s => {
+        let base = s.id.replace(/^project-/, '');
+        const parts = base.split('-');
+        if (parts.length > 1 && /^\d+$/.test(parts[parts.length - 1])) {
+          parts.pop();
+        }
+        return parts.join('-');
+      }));
+      customSkills = customSkills.filter(skill => !projectBaseIds.has(skill.id));
+    }
     
     return Promise.resolve(customSkills.map(skill => new CustomSkillTreeItem(skill)));
   }
@@ -52,18 +68,18 @@ export class CustomSkillTreeItem extends vscode.TreeItem {
     super(skill.title, vscode.TreeItemCollapsibleState.None);
 
     this.tooltip = `${skill.category}: ${skill.description}`;
-    this.description = skill.isActive ? 'ACTIVE' : '';
+    this.description = '';
     
     this.iconPath = new vscode.ThemeIcon(
-      skill.isActive ? 'pass-filled' : 'person',
-      new vscode.ThemeColor(skill.isActive ? 'charts.green' : 'disabledForeground')
+      'person',
+      new vscode.ThemeColor('charts.blue')
     );
 
     this.contextValue = 'customSkillItem';
     
     this.command = {
       command: 'agent-assistant.toggleSkillSidebar',
-      title: 'Toggle Skill',
+      title: 'Add Skill to Project',
       arguments: [skill.id]
     };
   }

@@ -186,7 +186,7 @@ export class ProjectSkillTreeItem extends vscode.TreeItem {
       new vscode.ThemeColor(skill.isActive ? 'charts.green' : 'disabledForeground')
     );
 
-    this.contextValue = skill.isActive ? 'projectSkillItemActive' : 'projectSkillItemInactive';
+    this.contextValue = 'projectSkillItem';
 
     this.command = {
       command: 'agent-assistant.toggleProjectSkillInWorkspace',

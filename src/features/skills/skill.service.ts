@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ApiClient } from '../../core/network/api.client';
+import { coreSkills } from './data/core-skills';
 
 export interface Skill {
   id: string;
@@ -143,7 +144,20 @@ export class SkillService {
 
   public getMarketplaceSkills(): Skill[] {
     const installedIds = new Set(this.installedSkills.map(s => s.id));
-    return this.availableSkills.filter(s => !installedIds.has(s.id));
+    const market = this.availableSkills.filter(s => !installedIds.has(s.id));
+
+    // Force 'human-coder' and 'arabic-localization' to be at the very top of the marketplace list
+    market.sort((a, b) => {
+      const priorityIds = ['human-coder', 'arabic-localization'];
+      const aIdx = priorityIds.indexOf(a.id);
+      const bIdx = priorityIds.indexOf(b.id);
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return 0; // Maintain original order for others
+    });
+
+    return market;
   }
 
   public installSkill(id: string, categoryName?: string): boolean {
@@ -269,7 +283,31 @@ export class SkillService {
 
       await vscode.workspace.fs.createDirectory(skillsFolder);
 
-      // --- Build the persistent system instruction content ---
+      // Write ALL project skills to the skills folder so their states are preserved
+      for (const skill of currentProjectSkills) {
+        const skillDir = vscode.Uri.joinPath(skillsFolder, skill.id);
+        const skillMdFile = vscode.Uri.joinPath(skillDir, 'SKILL.md');
+        await vscode.workspace.fs.createDirectory(skillDir);
+
+        const fm = [
+          `---`,
+          `id: ${skill.id}`,
+          `title: ${JSON.stringify(skill.title)}`,
+          `category: ${JSON.stringify(skill.category)}`,
+          `description: ${JSON.stringify(skill.description)}`,
+          `active: ${skill.isActive}`,
+          `---`,
+          ``
+        ].join('\n');
+
+        const skillMdContent = fm + `# Skill: ${skill.title}\n\n` +
+          `## Instructions\n${skill.fullInstructions}\n\n` +
+          `## Triggers\n${skill.tags.map(t => `- ${t}`).join('\n')}\n`;
+
+        await vscode.workspace.fs.writeFile(skillMdFile, Buffer.from(skillMdContent, 'utf8'));
+      }
+
+      // --- Build the persistent system instruction content from ACTIVE skills ---
       const skillNames = activeSkills.map(s => s.title.toUpperCase()).join(', ');
       const persistentHeader = activeSkills.length > 0
         ? [
@@ -290,15 +328,7 @@ export class SkillService {
         mdContent += `## Expert Skill Guidelines\n\n`;
 
         for (const skill of activeSkills) {
-          const skillDir = vscode.Uri.joinPath(skillsFolder, skill.id);
-          const skillMdFile = vscode.Uri.joinPath(skillDir, 'SKILL.md');
-          await vscode.workspace.fs.createDirectory(skillDir);
-
-          const skillMdContent = `# Skill: ${skill.title}\n\n` +
-            `## Instructions\n${skill.fullInstructions}\n\n` +
-            `## Triggers\n${skill.tags.map(t => `- ${t}`).join('\n')}\n`;
-
-          await vscode.workspace.fs.writeFile(skillMdFile, Buffer.from(skillMdContent, 'utf8'));
+          const skillMdFile = vscode.Uri.joinPath(skillsFolder, skill.id, 'SKILL.md');
 
           // Build Universal Markdown
           mdContent += `### ${skill.title.toUpperCase()} (${skill.category})\n`;
@@ -508,13 +538,33 @@ export class SkillService {
     }
   }
 
+  private async loadFallbackSkills(): Promise<Skill[]> {
+    try {
+      const fileUri = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'skills.json');
+      const raw = await vscode.workspace.fs.readFile(fileUri);
+      const content = Buffer.from(raw).toString('utf8');
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 2) {
+        return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load fallback skills from resources/skills.json', e);
+    }
+    return coreSkills.map(s => ({ ...s, isActive: false }));
+  }
+
   public async loadState() {
-    // 1. Load cached GitHub marketplace skills or fall back to local scan
+    // 1. Load cached GitHub marketplace skills or fall back to coreSkills / local scan
     const cached = this.context.globalState.get<Skill[]>('antigravity.githubMarketplaceSkills');
-    if (cached && Array.isArray(cached) && cached.length > 0) {
+    if (cached && Array.isArray(cached) && cached.length > 2) {
       this.availableSkills = cached;
     } else {
-      this.availableSkills = this.scanLocalSkills();
+      const scanned = this.scanLocalSkills();
+      if (scanned.length > 2) {
+        this.availableSkills = scanned;
+      } else {
+        this.availableSkills = await this.loadFallbackSkills();
+      }
     }
 
     // Silent background fetch to update the marketplace
@@ -522,13 +572,6 @@ export class SkillService {
 
     // 2. Load globally-installed skills (market + custom) from globalState
     let savedInstalled = this.context.globalState.get<Skill[]>('antigravity.installedSkills') || [];
-
-    // Fallback: if empty, pre-install the 2 core skills and activate them
-    if (savedInstalled.length === 0) {
-      const coreIds = ['arabic-localization', 'human-coder'];
-      savedInstalled = this.availableSkills.filter(s => coreIds.includes(s.id));
-      savedInstalled.forEach(s => s.isActive = true);
-    }
 
     this.installedSkills = savedInstalled;
 
@@ -599,12 +642,7 @@ export class SkillService {
     skill.isCustom = false;
     skill.isActive = true;
 
-    // 1. Add to in-memory list
-    if (!this.installedSkills.some(s => s.id === skill.id)) {
-      this.installedSkills.push(skill);
-    }
-
-    // 2. Persist into projectSkillsMap so the Project Skills tree shows it
+    // Persist into projectSkillsMap so the Project Skills tree shows it
     const workspaceKey = this.getCurrentWorkspaceKey();
     if (workspaceKey) {
       const projectSkillsMap = this.getProjectSkillsMap();
@@ -614,18 +652,17 @@ export class SkillService {
       }
       projectSkillsMap[workspaceKey] = skills;
       await this.context.globalState.update('antigravity.projectSkillsMap', projectSkillsMap);
+      await this.injectSkillsToWorkspace();
     }
 
-    this.saveState();
-    this.injectSkillsToWorkspace();
     this._onDidChangeSkills.fire();
   }
 
   public deleteProjectSkill(id: string) {
-    this.installedSkills = this.installedSkills.filter(s => s.id !== id);
-    this.saveState();
-    this.injectSkillsToWorkspace();
-    this._onDidChangeSkills.fire();
+    const currentPath = this.getCurrentWorkspaceKey();
+    if (currentPath) {
+      this.deleteProjectSkillFromSpecificWorkspace(currentPath, id);
+    }
   }
 
   public getCurrentWorkspacePath(): string | undefined {
@@ -647,10 +684,6 @@ export class SkillService {
 
       const currentPath = this.getCurrentWorkspaceKey();
       if (currentPath === workspacePath) {
-        if (!this.installedSkills.some(s => s.id === skill.id)) {
-          this.installedSkills.push(skill);
-        }
-        this.saveState();
         await this.injectSkillsToWorkspace();
       } else {
         // Inject into the target project's files even though it's not currently open
@@ -670,13 +703,10 @@ export class SkillService {
 
     const currentPath = this.getCurrentWorkspaceKey();
     if (currentPath === workspacePath) {
-      this.installedSkills = this.installedSkills.filter(s => s.id !== id);
-      this.saveState();
       await this.injectSkillsToWorkspace();
     } else {
       await this.injectSkillsToSpecificWorkspace(workspacePath);
     }
-
     this._onDidChangeSkills.fire();
   }
 
@@ -719,13 +749,13 @@ export class SkillService {
 
       for (const [name, type] of files) {
         if (type === vscode.FileType.Directory) {
+          // Ignore old or global folders that don't have project or custom prefix
+          if (!name.startsWith('project-') && !name.startsWith('custom-')) {
+            continue;
+          }
           const folderUri = vscode.Uri.joinPath(skillsFolder, name);
           const parsedSkill = await this.parseSkillFromMd(folderUri, name);
           if (parsedSkill) {
-            const existing = currentSkills.find(s => s.id === parsedSkill.id);
-            if (existing) {
-              parsedSkill.isActive = existing.isActive;
-            }
             foundSkills.push(parsedSkill);
           }
         }
@@ -764,7 +794,7 @@ export class SkillService {
 
   public async fetchMarketplaceSkillsFromGitHub(): Promise<void> {
     const config = vscode.workspace.getConfiguration('antigravityAccounts');
-    const url = config.get<string>('skillsMarketplaceUrl') || 'https://raw.githubusercontent.com/men3emkhaled/antigravity-accounts-extension/main/skills.json';
+    const url = config.get<string>('skillsMarketplaceUrl') || 'https://raw.githubusercontent.com/men3emkhaled/agent-assistant-extension/main/skills.json';
 
     try {
       const githubSkills = await ApiClient.request<Skill[]>(url);
@@ -788,10 +818,15 @@ export class SkillService {
     } catch (error) {
       console.error('Failed to fetch marketplace skills from GitHub', error);
       const cached = this.context.globalState.get<Skill[]>('antigravity.githubMarketplaceSkills');
-      if (cached && Array.isArray(cached) && cached.length > 0) {
+      if (cached && Array.isArray(cached) && cached.length > 2) {
         this.availableSkills = cached;
       } else {
-        this.availableSkills = this.scanLocalSkills();
+        const scanned = this.scanLocalSkills();
+        if (scanned.length > 2) {
+          this.availableSkills = scanned;
+        } else {
+          this.availableSkills = await this.loadFallbackSkills();
+        }
       }
     }
   }
@@ -1232,8 +1267,54 @@ export class SkillService {
       const raw = await vscode.workspace.fs.readFile(fileUri);
       const text = Buffer.from(raw).toString('utf8');
 
-      const titleMatch = text.match(/# Skill:\s*(.*)/);
-      const title = titleMatch ? titleMatch[1].trim() : skillId;
+      // Match YAML-like frontmatter
+      const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      let id = skillId;
+      let title = skillId;
+      let category = 'Premium UI & Design';
+      let description = `Project skill: ${skillId}`;
+      let active = true;
+
+      if (fmMatch) {
+        const fmText = fmMatch[1];
+        const idMatch = fmText.match(/id:\s*(.+)/);
+        if (idMatch) id = idMatch[1].trim();
+
+        const titleMatch = fmText.match(/title:\s*(.+)/);
+        if (titleMatch) {
+          try {
+            title = JSON.parse(titleMatch[1].trim());
+          } catch {
+            title = titleMatch[1].trim();
+          }
+        }
+
+        const catMatch = fmText.match(/category:\s*(.+)/);
+        if (catMatch) {
+          try {
+            category = JSON.parse(catMatch[1].trim());
+          } catch {
+            category = catMatch[1].trim();
+          }
+        }
+
+        const descMatch = fmText.match(/description:\s*(.+)/);
+        if (descMatch) {
+          try {
+            description = JSON.parse(descMatch[1].trim());
+          } catch {
+            description = descMatch[1].trim();
+          }
+        }
+
+        const activeMatch = fmText.match(/active:\s*(.+)/);
+        if (activeMatch) {
+          active = activeMatch[1].trim() === 'true';
+        }
+      } else {
+        const titleMatch = text.match(/# Skill:\s*(.*)/);
+        if (titleMatch) title = titleMatch[1].trim();
+      }
 
       const instructionsMatch = text.match(/## Instructions\s*([\s\S]*?)(## Triggers|$)/i);
       const fullInstructions = instructionsMatch ? instructionsMatch[1].trim() : text;
@@ -1251,21 +1332,19 @@ export class SkillService {
         }
       }
 
-      // Find if we have a match in availableSkills to get the correct category/description/color
-      const matched = this.availableSkills.find(s => s.id === skillId);
-      const category = matched ? matched.category : 'Premium UI & Design';
-      const description = matched ? matched.description : `Project skill: ${title}`;
+      // Find if we have a match in availableSkills to get the correct color and icon
+      const matched = this.availableSkills.find(s => s.id === id);
       const color = matched ? matched.color : '#007ACC';
 
       return {
-        id: skillId,
+        id,
         title,
         category,
         description,
         tags: tags.length > 0 ? tags : [category],
         icon: matched ? matched.icon : 'layers',
         color,
-        isActive: true,
+        isActive: active,
         fullInstructions,
         isProject: true,
         isCustom: false
@@ -1361,6 +1440,30 @@ export class SkillService {
 
       await vscode.workspace.fs.createDirectory(skillsFolder);
 
+      // Write ALL project skills to the skills folder so their states are preserved
+      for (const skill of skills) {
+        const skillDir = vscode.Uri.joinPath(skillsFolder, skill.id);
+        const skillMdFile = vscode.Uri.joinPath(skillDir, 'SKILL.md');
+        await vscode.workspace.fs.createDirectory(skillDir);
+
+        const fm = [
+          `---`,
+          `id: ${skill.id}`,
+          `title: ${JSON.stringify(skill.title)}`,
+          `category: ${JSON.stringify(skill.category)}`,
+          `description: ${JSON.stringify(skill.description)}`,
+          `active: ${skill.isActive}`,
+          `---`,
+          ``
+        ].join('\n');
+
+        const skillMdContent = fm + `# Skill: ${skill.title}\n\n` +
+          `## Instructions\n${skill.fullInstructions}\n\n` +
+          `## Triggers\n${skill.tags.map(t => `- ${t}`).join('\n')}\n`;
+
+        await vscode.workspace.fs.writeFile(skillMdFile, Buffer.from(skillMdContent, 'utf8'));
+      }
+
       if (activeSkills.length > 0) {
         const skillNames = activeSkills.map(s => s.title.toUpperCase()).join(', ');
         const persistentHeader = [
@@ -1377,15 +1480,7 @@ export class SkillService {
         let compactInstructions = '';
 
         for (const skill of activeSkills) {
-          const skillDir = vscode.Uri.joinPath(skillsFolder, skill.id);
-          const skillMdFile = vscode.Uri.joinPath(skillDir, 'SKILL.md');
-          await vscode.workspace.fs.createDirectory(skillDir);
-
-          const skillMdContent = `# Skill: ${skill.title}\n\n` +
-            `## Instructions\n${skill.fullInstructions}\n\n` +
-            `## Triggers\n${skill.tags.map(t => `- ${t}`).join('\n')}\n`;
-
-          await vscode.workspace.fs.writeFile(skillMdFile, Buffer.from(skillMdContent, 'utf8'));
+          const skillMdFile = vscode.Uri.joinPath(skillsFolder, skill.id, 'SKILL.md');
 
           mdContent += `### ${skill.title.toUpperCase()} (${skill.category})\n`;
           mdContent += `**Role**: ${skill.description}\n`;
@@ -1433,7 +1528,7 @@ export class SkillService {
         try { await vscode.workspace.fs.delete(vscode.Uri.joinPath(root, 'GEMINI.md')); } catch (e) {}
       }
     } catch (err) {
-      console.error('Failed to inject to specific workspace', err);
+      console.error('Failed to inject specific universal skills', err);
     } finally {
       setTimeout(() => {
         this.isInjecting = false;
